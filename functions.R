@@ -21,7 +21,7 @@ posterior <- function(prior, estimate, n1) {
 
 pdf <- function(prior, Delta) ifelse(Delta < prior$mrv, 0, dnorm(Delta, prior$mu, prior$tau) / prior$normalizing_constant)
 
-power <- function(Delta, n, c) 1 - pnorm(c, mean = sqrt(n)/2 * Delta, sd = 1)
+power <- function(Delta, n, c) 1 - pnorm(c, mean = sqrt(n) * Delta, sd = 1)
 
 EP <- function(prior, n, c, mrv = 0) {
     cprior <- condition(prior, mrv)
