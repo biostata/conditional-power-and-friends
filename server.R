@@ -10,7 +10,7 @@ server <- function(input, output) {
         crit      <- qnorm(.975)
         prior     <- Normal(input$priorMean1, input$priorSd1)
         cprior    <- condition(prior, input$mrv1)
-        ep        <- expected_power(prior, input$sampleSize1, crit, input$mrv1)
+        ep        <- EP(prior, input$sampleSize1, crit, input$mrv1)
         pow       <- power(input$mrv1, input$sampleSize1, crit)
         tbl_power <- tibble(
             Delta  = seq(-.25, 1, by = .001),
