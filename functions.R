@@ -11,7 +11,7 @@ Normal <- function(mu, tau, mrv = -Inf) {
     return(res)
 }
 
-condition <- function(prior, mrv) NormalPrior(prior$mu, prior$tau, mrv)
+condition <- function(prior, mrv) Normal(prior$mu, prior$tau, mrv)
 
 posterior <- function(prior, estimate, n1) {
     mu    <- 1/(1/prior$tau^2 + n1/1) * (prior$mu/prior$tau^2 + n1*estimate)
