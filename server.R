@@ -88,7 +88,7 @@ server <- function(input, output) {
             )
 
         tbl_sample <- tibble(
-                sample = rnorm(10^4, sqrt(input$sampleSize1)*input$sampleDelta, 1),
+                sample = rnorm(10^3, sqrt(input$sampleSize1)*input$sampleDelta, 1),
                 `CP, prior mean` = map_dbl(
                     sample,
                     ~CP(., n1(), input$sampleSize1, crit, input$priorMean1)
@@ -110,7 +110,7 @@ server <- function(input, output) {
 
         p3 <- ggplot(tbl_sample) +
             aes(`conditional power`) +
-            geom_histogram(aes(fill = type), bins = 50) +
+            geom_histogram(aes(fill = type), bins = 21) +
             facet_wrap(~type) +
             theme_bw() +
             theme(
