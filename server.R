@@ -6,6 +6,14 @@ source('functions.R')
 
 server <- function(input, output) {
 
+    output$slider <- renderUI({
+        sliderInput('n1', label = 'n1', value = min(max(1, ceiling(input$sampleSize1 / 3)), input$sampleSize1 - 1) , min = 1, max = input$sampleSize1 - 1, step = 1)
+    })
+
+    n1 <- reactive({
+        if (is.null(input$n1)) 1 else input$n1
+    })
+
     output$expectedPowerPlot <- renderPlot({
 
         crit      <- qnorm(.975)
@@ -32,7 +40,8 @@ server <- function(input, output) {
                 sprintf('expected power: %5.1f%%', 100*ep)
             )
         )
-        ggplot(tbl_power) +
+
+        p1 <- ggplot(tbl_power) +
             aes(Delta, power) +
             geom_ribbon(aes(ymin = 0, ymax = 1), fill = 'red', alpha = .1, data = tbl_power %>% filter(Delta < 0)) +
             geom_ribbon(aes(ymin = 0, ymax = 1), fill = 'green', alpha = .1, data = tbl_power %>% filter(Delta >= input$mrv1)) +
@@ -48,81 +57,92 @@ server <- function(input, output) {
                 legend.position = 'none'
             )
 
-    })
-
-    output$slider <- renderUI({
-        sliderInput('n1', label = 'n1', value = min(max(1, ceiling(input$sampleSize1 / 3)), input$sampleSize1 - 1) , min = 1, max = input$sampleSize1 - 1, step = 1)
-    })
-
-    output$conditionalPowerPlot <- renderPlot({
-
-        crit       <- qnorm(.975)
-        prior      <- Normal(input$priorMean1, input$priorSd1)
         tbl_cpower <- tibble(
                 estimate = seq(-.25, 1, by = .001),
                 `CP, prior mean` = map_dbl(
-                        sqrt(input$n1)*estimate,
-                     ~CP(., input$n1, input$sampleSize1, crit, input$priorMean1)
-                    ),
+                    sqrt(n1())*estimate,
+                    ~CP(., n1(), input$sampleSize1, crit, input$priorMean1)
+                ),
                 `CP, MRV` = map_dbl(
-                        sqrt(input$n1)*estimate,
-                        ~CP(., input$n1, input$sampleSize1, crit, input$mrv1)
-                    ),
+                    sqrt(n1())*estimate,
+                    ~CP(., n1(), input$sampleSize1, crit, input$mrv1)
+                ),
                 OCP = map_dbl(
-                        sqrt(input$n1)*estimate,
-                        ~OCP(., input$n1, input$sampleSize1, crit, input$mrv1)
-                    ),
+                    sqrt(n1())*estimate,
+                    ~OCP(., n1(), input$sampleSize1, crit, input$mrv1)
+                ),
                 CEP = map_dbl(
-                        sqrt(input$n1)*estimate,
-                        ~CEP(prior, ., input$n1, input$sampleSize1, crit, input$mrv1)
-                    )
+                    sqrt(n1())*estimate,
+                    ~CEP(prior, ., n1(), input$sampleSize1, crit, input$mrv1)
+                )
             ) %>%
             pivot_longer(-estimate, names_to = 'type', values_to = 'conditional power')
-        ggplot(tbl_cpower) +
+
+        p2 <- ggplot(tbl_cpower) +
             aes(estimate, `conditional power`) +
             geom_line(aes(color = type)) +
             coord_cartesian(xlim = range(tbl_cpower$estimate), ylim = c(0, 1), expand = FALSE) +
             theme_bw() +
             theme(
+                legend.position = 'none'
+            )
+
+        tbl_sample <- tibble(
+                sample = rnorm(10^4, sqrt(input$sampleSize1)*input$sampleDelta, 1),
+                `CP, prior mean` = map_dbl(
+                    sample,
+                    ~CP(., n1(), input$sampleSize1, crit, input$priorMean1)
+                ),
+                `CP, MRV` = map_dbl(
+                    sample,
+                    ~CP(., n1(), input$sampleSize1, crit, input$mrv1)
+                ),
+                OCP = map_dbl(
+                    sample,
+                    ~OCP(., n1(), input$sampleSize1, crit, input$mrv1)
+                ),
+                CEP = map_dbl(
+                    sample,
+                    ~CEP(prior, ., n1(), input$sampleSize1, crit, input$mrv1)
+                )
+            ) %>%
+            pivot_longer(-sample, names_to = 'type', values_to = 'conditional power')
+
+        p3 <- ggplot(tbl_sample) +
+            aes(`conditional power`) +
+            geom_histogram(aes(fill = type), bins = 50) +
+            facet_wrap(~type) +
+            theme_bw() +
+            theme(
                 legend.position = 'top'
             )
 
-    })
 
-    observeEvent(input$refreshHistogram, {
-        output$conditionalPowerHistogramPlots <- renderPlot({isolate({
-            crit       <- qnorm(.975)
-            prior      <- Normal(input$priorMean1, input$priorSd1)
-            tbl_sample <- tibble(
-                    sample = rnorm(10^4, sqrt(input$sampleSize1)*input$sampleDelta, 1),
-                    `CP, prior mean` = map_dbl(
-                        sample,
-                        ~CP(., input$n1, input$sampleSize1, crit, input$priorMean1)
-                    ),
-                    `CP, MRV` = map_dbl(
-                        sample,
-                        ~CP(., input$n1, input$sampleSize1, crit, input$mrv1)
-                    ),
-                    OCP = map_dbl(
-                        sample,
-                        ~OCP(., input$n1, input$sampleSize1, crit, input$mrv1)
-                    ),
-                    CEP = map_dbl(
-                        sample,
-                        ~CEP(prior, ., input$n1, input$sampleSize1, crit, input$mrv1)
-                    )
-                ) %>%
-                pivot_longer(-sample, names_to = 'type', values_to = 'conditional power')
-            ggplot(tbl_sample) +
-                aes(`conditional power`) +
-                geom_histogram(aes(fill = type), bins = 50) +
-                facet_wrap(~type) +
-                theme_bw() +
-                theme(
-                    legend.position = 'top'
-                )
+        tbl_priors <- tibble(
+                Delta               = tbl_power$Delta,
+                prior               = pdf(prior, Delta),
+                `conditional prior` = pdf(cprior, Delta)
+            ) %>%
+            mutate(
+                `conditional prior` = {
+                    res <- `conditional prior`
+                    res[which.min(abs(Delta - input$mrv1))] <- NA_real_
+                    res
+                }
+            ) %>%
+            pivot_longer(-Delta, names_to = 'type', values_to = 'PDF')
 
-        })})
+
+        p4 <- ggplot(tbl_priors) +
+            aes(Delta, PDF) +
+            geom_line(aes(color = type), alpha = .66) +
+            theme_bw() +
+            theme(
+                legend.position = 'top'
+            )
+
+        gridExtra::grid.arrange(p1, p2, p4, p3, ncol = 2, nrow = 2)
+
     })
 
 }
